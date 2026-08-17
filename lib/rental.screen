@@ -1,0 +1,129 @@
+import 'package:flutter/material.dart';
+import '../app_colors.dart';
+
+class ScreenRental extends StatefulWidget {
+  const ScreenRental({super.key});
+
+  @override
+  State<ScreenRental> createState() => _ScreenRentalState();
+}
+
+class _ScreenRentalState extends State<ScreenRental> {
+  int selectedDays = 1;
+  final int pricePerDay = 5000;
+
+  @override
+  Widget build(BuildContext context) {
+    int totalPrice = selectedDays * pricePerDay;
+
+    return Container(
+      color: AppColors.sandLight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 160,
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [AppColors.indigoMid, AppColors.indigoDeep]),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.two_wheeler, size: 70, color: AppColors.sun),
+                SizedBox(height: 8),
+                Text('Location de Véhicules', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Moto Sanili 125cc', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.indigoDeep)),
+                Text('Disponible · Quartier Plateau (Niamey)', style: TextStyle(fontSize: 12, color: AppColors.charcoal.withValues(alpha: 140))),
+                const SizedBox(height: 20),
+
+                // Sélection de la durée
+                const Text('Durée de la location :', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [1, 3, 7].map((days) {
+                    final isSelected = selectedDays == days;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ChoiceChip(
+                        label: Text('$days jour${days > 1 ? 's' : ''}'),
+                        selected: isSelected,
+                        selectedColor: AppColors.sun,
+                        labelStyle: TextStyle(color: isSelected ? Colors.white : AppColors.charcoal),
+                        onSelected: (_) {
+                          setState(() {
+                            selectedDays = days;
+                          });
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: AppColors.millet.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('📍 Traceur GPS actif', style: TextStyle(fontSize: 13, color: AppColors.charcoal)),
+                          Text('Sécurisé', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.millet)),
+                        ],
+                      ),
+                      SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('🛡️ Caution exigée', style: TextStyle(fontSize: 13, color: AppColors.charcoal)),
+                          Text('50 000 F', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.millet)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.sun,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Demande enregistrée pour $selectedDays jour(s) ($totalPrice F). Le propriétaire va vous contacter.'),
+                      backgroundColor: AppColors.millet,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                },
+                child: Text(
+                  'Louer ($selectedDays j) — $totalPrice F CFA',
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
