@@ -22,18 +22,13 @@ void main() {
 // ==========================================
 // 1. APPLICATION & NAVIGATION PRINCIPALE
 // ==========================================
-class MobiloMotorsInteractiveApp extends StatefulWidget {
+class MobiloMotorsInteractiveApp extends StatelessWidget {
   const MobiloMotorsInteractiveApp({super.key});
 
   @override
-  State<MobiloMotorsInteractiveApp> createState() => _MobiloMotorsInteractiveAppState();
-}
-
-class _MobiloMotorsInteractiveAppState extends State<MobiloMotorsInteractiveApp> {
-  bool isAuthenticated = false;
-
-  @override
   Widget build(BuildContext context) {
+    final auth = Supabase.instance.client.auth;
+
     return MaterialApp(
       title: 'Mobilo Motors — App',
       debugShowCheckedModeBanner: false,
@@ -41,17 +36,18 @@ class _MobiloMotorsInteractiveAppState extends State<MobiloMotorsInteractiveApp>
         scaffoldBackgroundColor: AppColors.indigoDeep,
         fontFamily: 'Roboto',
       ),
-      home: isAuthenticated
-          ? MainNavigationWrapper(
-              onLogout: () {
-                setState(() => isAuthenticated = false);
-              },
-            )
-          : AuthScreen(
-              onLoginSuccess: () {
-                setState(() => isAuthenticated = true);
-              },
-            ),
+      home: StreamBuilder<AuthState>(
+        stream: auth.onAuthStateChange,
+        builder: (context, snapshot) {
+          final session = snapshot.data?.session ?? auth.currentSession;
+          if (session != null) {
+            return MainNavigationWrapper(
+              onLogout: () => auth.signOut(),
+            );
+          }
+          return const AuthScreen();
+        },
+      ),
     );
   }
 }
