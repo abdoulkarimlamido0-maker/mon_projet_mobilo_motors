@@ -227,7 +227,9 @@ void showPaymentModal(BuildContext context, PaymentMethod current, Function(Paym
 // ==========================================
 
 // Écran Carte avec OpenStreetMap interactive
-class ScreenMapSearch extends StatelessWidget {
+
+// Écran Carte : position réelle de l'utilisateur (si elle est dans la zone de Niamey)
+class ScreenMapSearch extends StatefulWidget {
   final VoidCallback onSwitchToDrivers;
   final VoidCallback onSwitchToRental;
 
@@ -238,15 +240,82 @@ class ScreenMapSearch extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    const LatLng userPosition = LatLng(13.5115, 2.1254);
+  State<ScreenMapSearch> createState() => _ScreenMapSearchState();
+}
 
+class _ScreenMapSearchState extends State<ScreenMapSearch> {
+  static const LatLng _niamey = LatLng(13.5115, 2.1254);
+  static const double _serviceRadiusKm = 100;
+
+  final MapController _mapController = MapController();
+  LatLng _userPosition = _niamey;
+  bool _mapReady = false;
+  bool _locating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _locate();
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _locate() async {
+    setState(() => _locating = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _toast("Active la localisation de ton appareil.");
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _toast("Localisation refusée : la carte reste sur Niamey.");
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      final here = LatLng(pos.latitude, pos.longitude);
+      final km = const Distance().as(LengthUnit.Kilometer, here, _niamey);
+
+      if (km > _serviceRadiusKm) {
+        _toast("Tu es hors de la zone de service (Niamey) : la carte reste sur Niamey pour la démonstration.");
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _userPosition = here);
+      if (_mapReady) _mapController.move(here, 15);
+    } catch (_) {
+      _toast("Position introuvable : la carte reste sur Niamey.");
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Stack(
       children: [
         FlutterMap(
-          options: const MapOptions(
-            initialCenter: userPosition,
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _userPosition,
             initialZoom: 14.0,
+            onMapReady: () {
+              _mapReady = true;
+              if (_userPosition != _niamey) _mapController.move(_userPosition, 15);
+            },
           ),
           children: [
             TileLayer(
@@ -255,14 +324,14 @@ class ScreenMapSearch extends StatelessWidget {
             ),
             MarkerLayer(
               markers: [
-                const Marker(
-                  point: userPosition,
+                Marker(
+                  point: _userPosition,
                   width: 40,
                   height: 40,
-                  child: Icon(Icons.my_location, color: AppColors.sun, size: 30),
+                  child: const Icon(Icons.my_location, color: AppColors.sun, size: 30),
                 ),
                 Marker(
-                  point: LatLng(userPosition.latitude + 0.005, userPosition.longitude + 0.003),
+                  point: LatLng(_userPosition.latitude + 0.005, _userPosition.longitude + 0.003),
                   width: 40,
                   height: 40,
                   child: const Icon(Icons.location_on, color: AppColors.indigoDeep, size: 35),
@@ -280,7 +349,7 @@ class ScreenMapSearch extends StatelessWidget {
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: onSwitchToDrivers,
+                    onTap: widget.onSwitchToDrivers,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(color: AppColors.indigoDeep, borderRadius: BorderRadius.circular(8)),
@@ -290,12 +359,27 @@ class ScreenMapSearch extends StatelessWidget {
                 ),
                 Expanded(
                   child: GestureDetector(
-                    onTap: onSwitchToRental,
+                    onTap: widget.onSwitchToRental,
                     child: const Text('Location', textAlign: TextAlign.center, style: TextStyle(color: AppColors.indigoDeep, fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
             ),
+          ),
+        ),
+        Positioned(
+          top: 64, right: 12,
+          child: FloatingActionButton.small(
+            heroTag: 'locate',
+            backgroundColor: AppColors.white,
+            onPressed: _locating ? null : _locate,
+            child: _locating
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.gps_fixed, color: AppColors.indigoDeep),
           ),
         ),
         Positioned(
@@ -315,7 +399,7 @@ class ScreenMapSearch extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.sun),
-                    onPressed: onSwitchToDrivers,
+                    onPressed: widget.onSwitchToDrivers,
                     child: const Text('Rechercher un chauffeur', style: TextStyle(color: Colors.white)),
                   ),
                 ),
@@ -327,7 +411,6 @@ class ScreenMapSearch extends StatelessWidget {
     );
   }
 }
-
 // ==========================================
 // OUTILS D'AFFICHAGE
 // ==========================================
