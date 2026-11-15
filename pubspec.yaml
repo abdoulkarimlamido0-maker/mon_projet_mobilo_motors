@@ -2,7 +2,7 @@ name: mobilo_app
 description: "Gari - application de VTC et de location de vehicules."
 publish_to: 'none'
 version: 1.0.0+1
-  geolocator: ^13.0.2
+
 environment:
   sdk: ^3.6.0
 
@@ -12,6 +12,7 @@ dependencies:
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   supabase_flutter: ^2.0.0
+  geolocator: ^13.0.2
 
 dev_dependencies:
   flutter_test:
