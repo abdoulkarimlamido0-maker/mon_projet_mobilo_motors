@@ -7,9 +7,9 @@ import 'auth_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: 'https://izcdejcmewhvldxcdvuf.supabase.co/rest/v1/',
-    anonKey: 'TA_CLE_sb_publishable',
-  );
+  url: 'https://izcdejcmewhvldxcdvuf.supabase.co',
+  anonKey: 'sb_publishable_qyr0thEwf0M_X50u6GPQ1A_l0gNn3zI',
+);
   runApp(const MobiloMotorsInteractiveApp());
 }
 
