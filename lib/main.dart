@@ -1,21 +1,15 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
     url: 'https://TON-PROJET.supabase.co',
-    anonKey: 'sb_publishable_qyr0thEwf0M_X50u6GPQ1A_l0gNn3zI',
+    anonKey: 'TA_CLE_sb_publishable',
   );
-  runApp(const MobiloMotorsInteractiveApp());
-}
-
-
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'auth_screen.dart';
-
-void main() {
   runApp(const MobiloMotorsInteractiveApp());
 }
 
