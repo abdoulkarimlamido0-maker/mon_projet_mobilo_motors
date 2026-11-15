@@ -8,7 +8,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
   url: 'https://izcdejcmewhvldxcdvuf.supabase.co',
-  anonKey: 'sb_publishable_qyr0thEwf0M_X50u6GPQ1A_l0gNn3zI',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6Y2RlamNtZXdodmxkeGNkdnVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2NTk0NDMsImV4cCI6MjExMDIzNTQ0M30.ia5MNZrux7BknNzSjfS2s_-0C0D0iAMZC-4Gn2DwdJI',
 );
   runApp(const MobiloMotorsInteractiveApp());
 }
