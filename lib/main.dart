@@ -328,7 +328,28 @@ class ScreenMapSearch extends StatelessWidget {
   }
 }
 
-// Écran Chauffeurs avec sélection de paiement et suivi
+// ==========================================
+// OUTILS D'AFFICHAGE
+// ==========================================
+String formatFcfa(num v) {
+  final s = v.toInt().toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+    buf.write(s[i]);
+  }
+  return '$buf F';
+}
+
+const List<Color> kAvatarColors = [
+  AppColors.indigoMid,
+  AppColors.sun,
+  AppColors.millet,
+];
+
+// ==========================================
+// ÉCRAN CHAUFFEURS : lit "drivers", écrit dans "rides"
+// ==========================================
 class ScreenDrivers extends StatefulWidget {
   const ScreenDrivers({super.key});
 
@@ -337,19 +358,107 @@ class ScreenDrivers extends StatefulWidget {
 }
 
 class _ScreenDriversState extends State<ScreenDrivers> {
+  List<Map<String, dynamic>> _drivers = [];
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
   int _selectedDriverIndex = 0;
   bool _isRideConfirmed = false;
   PaymentMethod _selectedPayment = kPaymentMethods[0];
 
-  final List<Map<String, dynamic>> _drivers = [
-    {'name': 'Boubacar S. ✅', 'meta': '4.9 ★ · 3 min · Moto', 'price': '800 F', 'color': AppColors.indigoMid, 'phone': '+227 90 00 11 22'},
-    {'name': 'Halima I. ✅', 'meta': '4.8 ★ · 6 min · Voiture', 'price': '1500 F', 'color': AppColors.sun, 'phone': '+227 96 33 44 55'},
-    {'name': 'Idi K. ✅', 'meta': '5.0 ★ · 8 min · Moto', 'price': '700 F', 'color': AppColors.millet, 'phone': '+227 92 66 77 88'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadDrivers();
+  }
+
+  Future<void> _loadDrivers() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await Supabase.instance.client
+          .from('drivers')
+          .select()
+          .order('price_fcfa');
+      if (!mounted) return;
+      setState(() {
+        _drivers = List<Map<String, dynamic>>.from(data);
+        _selectedDriverIndex = 0;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Impossible de charger les chauffeurs.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _confirmRide() async {
+    final driver = _drivers[_selectedDriverIndex];
+    setState(() => _saving = true);
+    try {
+      await Supabase.instance.client.from('rides').insert({
+        'driver_id': driver['id'],
+        'price_fcfa': driver['price_fcfa'],
+        'payment_method': _selectedPayment.id,
+      });
+      if (!mounted) return;
+      setState(() => _isRideConfirmed = true);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("La course n'a pas pu être enregistrée.")),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  String _meta(Map<String, dynamic> d) {
+    final rating = (d['rating'] as num).toStringAsFixed(1);
+    return '$rating ★ · ${d['eta_min']} min · ${d['vehicle_type']}';
+  }
+
+  String _label(Map<String, dynamic> d) =>
+      d['verified'] == true ? '${d['name']} ✅' : '${d['name']}';
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        color: AppColors.sandLight,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null || _drivers.isEmpty) {
+      return Container(
+        color: AppColors.sandLight,
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error ?? 'Aucun chauffeur disponible pour le moment.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.charcoal),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.sun),
+                onPressed: _loadDrivers,
+                child: const Text('Réessayer', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final selectedDriver = _drivers[_selectedDriverIndex];
+    final selectedColor = kAvatarColors[_selectedDriverIndex % kAvatarColors.length];
 
     if (_isRideConfirmed) {
       return Container(
@@ -361,12 +470,12 @@ class _ScreenDriversState extends State<ScreenDrivers> {
             const Icon(Icons.directions_run, size: 60, color: AppColors.sun),
             const SizedBox(height: 16),
             const Text(
-              'Chauffeur en route !',
+              'Course enregistrée !',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.indigoDeep),
             ),
             const SizedBox(height: 8),
             Text(
-              '${selectedDriver['name']} arrive dans environ 3 minutes.',
+              '${_label(selectedDriver)} arrive dans environ ${selectedDriver['eta_min']} minutes.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14, color: AppColors.charcoal),
             ),
@@ -382,17 +491,20 @@ class _ScreenDriversState extends State<ScreenDrivers> {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(radius: 20, backgroundColor: selectedDriver['color']),
+                      CircleAvatar(radius: 20, backgroundColor: selectedColor),
                       const SizedBox(width: 12),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(selectedDriver['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          Text(selectedDriver['meta'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          Text(_label(selectedDriver), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          Text(_meta(selectedDriver), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                         ],
                       ),
                       const Spacer(),
-                      Text(selectedDriver['price'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.millet, fontSize: 16)),
+                      Text(
+                        formatFcfa(selectedDriver['price_fcfa'] as num),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.millet, fontSize: 16),
+                      ),
                     ],
                   ),
                   const Divider(height: 24),
@@ -433,11 +545,11 @@ class _ScreenDriversState extends State<ScreenDrivers> {
                     onPressed: () {
                       setState(() => _isRideConfirmed = false);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Course annulée.')),
+                        const SnackBar(content: Text('Retour à la liste des chauffeurs.')),
                       );
                     },
-                    icon: const Icon(Icons.cancel, color: Colors.white),
-                    label: const Text('Annuler', style: TextStyle(color: Colors.white)),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    label: const Text('Retour', style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
@@ -477,17 +589,23 @@ class _ScreenDriversState extends State<ScreenDrivers> {
                     ),
                     child: Row(
                       children: [
-                        CircleAvatar(radius: 18, backgroundColor: driver['color']),
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: kAvatarColors[index % kAvatarColors.length],
+                        ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(driver['name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.charcoal)),
-                            Text(driver['meta'], style: TextStyle(fontSize: 11, color: AppColors.charcoal.withAlpha(140))),
+                            Text(_label(driver), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.charcoal)),
+                            Text(_meta(driver), style: TextStyle(fontSize: 11, color: AppColors.charcoal.withAlpha(140))),
                           ],
                         ),
                         const Spacer(),
-                        Text(driver['price'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.indigoDeep)),
+                        Text(
+                          formatFcfa(driver['price_fcfa'] as num),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.indigoDeep),
+                        ),
                       ],
                     ),
                   ),
@@ -511,10 +629,17 @@ class _ScreenDriversState extends State<ScreenDrivers> {
                 backgroundColor: AppColors.sun,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () {
-                setState(() => _isRideConfirmed = true);
-              },
-              child: Text('Confirmer la course (${selectedDriver['price']})', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+              onPressed: _saving ? null : _confirmRide,
+              child: _saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      'Confirmer la course (${formatFcfa(selectedDriver['price_fcfa'] as num)})',
+                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],
@@ -523,7 +648,9 @@ class _ScreenDriversState extends State<ScreenDrivers> {
   }
 }
 
-// Écran Location interactif avec paiement Mobile Money
+// ==========================================
+// ÉCRAN LOCATION : lit "vehicles", écrit dans "rentals"
+// ==========================================
 class ScreenRental extends StatefulWidget {
   const ScreenRental({super.key});
 
@@ -532,12 +659,105 @@ class ScreenRental extends StatefulWidget {
 }
 
 class _ScreenRentalState extends State<ScreenRental> {
-  bool _isRentalActive = false;
+  List<Map<String, dynamic>> _vehicles = [];
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  int _selectedIndex = 0;
+  Map<String, dynamic>? _activeRental;
   PaymentMethod _selectedPayment = kPaymentMethods[1];
 
   @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await Supabase.instance.client
+          .from('vehicles')
+          .select()
+          .eq('available', true)
+          .order('daily_price_fcfa');
+      if (!mounted) return;
+      setState(() {
+        _vehicles = List<Map<String, dynamic>>.from(data);
+        _selectedIndex = 0;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Impossible de charger les véhicules.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _rent() async {
+    final vehicle = _vehicles[_selectedIndex];
+    setState(() => _saving = true);
+    try {
+      final res = await Supabase.instance.client
+          .from('rentals')
+          .insert({
+            'vehicle_id': vehicle['id'],
+            'amount_fcfa': vehicle['daily_price_fcfa'],
+            'payment_method': _selectedPayment.id,
+          })
+          .select()
+          .single();
+      if (!mounted) return;
+      setState(() => _activeRental = res);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("La location n'a pas pu être enregistrée.")),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (_isRentalActive) {
+    if (_loading) {
+      return Container(
+        color: AppColors.sandLight,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null || _vehicles.isEmpty) {
+      return Container(
+        color: AppColors.sandLight,
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error ?? 'Aucun véhicule disponible pour le moment.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.charcoal),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.sun),
+                onPressed: _loadVehicles,
+                child: const Text('Réessayer', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final vehicle = _vehicles[_selectedIndex];
+
+    if (_activeRental != null) {
       return Container(
         color: AppColors.sandLight,
         padding: const EdgeInsets.all(20),
@@ -547,7 +767,7 @@ class _ScreenRentalState extends State<ScreenRental> {
             const Icon(Icons.check_circle, size: 70, color: AppColors.millet),
             const SizedBox(height: 16),
             const Text(
-              'Location Activée !',
+              'Location enregistrée !',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.indigoDeep),
             ),
             const SizedBox(height: 8),
@@ -563,9 +783,9 @@ class _ScreenRentalState extends State<ScreenRental> {
                 color: AppColors.indigoDeep,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text(
-                'MBL-8842',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.sun, letterSpacing: 2),
+              child: Text(
+                '${_activeRental!['unlock_code']}',
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.sun, letterSpacing: 2),
               ),
             ),
             const SizedBox(height: 20),
@@ -577,19 +797,22 @@ class _ScreenRentalState extends State<ScreenRental> {
               ),
               child: Column(
                 children: [
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Véhicule :'),
-                      Text('Moto Sanili 125', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text('Véhicule :'),
+                      Text('${vehicle['name']}', style: const TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const Divider(),
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Montant :'),
-                      Text('5 000 F CFA', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.millet)),
+                      const Text('Montant :'),
+                      Text(
+                        formatFcfa(_activeRental!['amount_fcfa'] as num),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.millet),
+                      ),
                     ],
                   ),
                   const Divider(),
@@ -614,10 +837,8 @@ class _ScreenRentalState extends State<ScreenRental> {
               width: double.infinity,
               height: 48,
               child: OutlinedButton(
-                onPressed: () {
-                  setState(() => _isRentalActive = false);
-                },
-                child: const Text('Terminer / Retour à la recherche', style: TextStyle(color: AppColors.indigoDeep)),
+                onPressed: () => setState(() => _activeRental = null),
+                child: const Text('Retour à la recherche', style: TextStyle(color: AppColors.indigoDeep)),
               ),
             ),
           ],
@@ -625,51 +846,84 @@ class _ScreenRentalState extends State<ScreenRental> {
       );
     }
 
+    final isMoto = vehicle['vehicle_type'] == 'Moto';
+
     return Container(
       color: AppColors.sandLight,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 140,
+            height: 130,
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(colors: [AppColors.indigoMid, AppColors.indigoDeep]),
             ),
-            child: const Center(
-              child: Icon(Icons.two_wheeler, size: 60, color: Colors.white54),
+            child: Center(
+              child: Icon(
+                isMoto ? Icons.two_wheeler : Icons.directions_car,
+                size: 60,
+                color: Colors.white54,
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Moto Sanili 125', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.indigoDeep)),
-                Text('Disponible · Quartier Plateau', style: TextStyle(fontSize: 12, color: AppColors.charcoal.withAlpha(140))),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.millet.withAlpha(23), borderRadius: BorderRadius.circular(8)),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('📍 Traceur GPS actif', style: TextStyle(fontSize: 12, color: AppColors.charcoal)),
-                      Text('Caution 50 000 F', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.millet)),
-                    ],
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    children: List.generate(_vehicles.length, (i) {
+                      return ChoiceChip(
+                        label: Text('${_vehicles[i]['name']}'),
+                        selected: i == _selectedIndex,
+                        onSelected: (_) => setState(() => _selectedIndex = i),
+                      );
+                    }),
                   ),
-                ),
-                const SizedBox(height: 16),
-                PaymentSelectorTile(
-                  selectedMethod: _selectedPayment,
-                  onTap: () => showPaymentModal(context, _selectedPayment, (method) {
-                    setState(() => _selectedPayment = method);
-                  }),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  Text(
+                    '${vehicle['name']}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.indigoDeep),
+                  ),
+                  Text(
+                    'Disponible · ${vehicle['location'] ?? ''}',
+                    style: TextStyle(fontSize: 12, color: AppColors.charcoal.withAlpha(140)),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.millet.withAlpha(23),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          vehicle['gps_tracker'] == true ? '📍 Traceur GPS actif' : 'Sans traceur GPS',
+                          style: const TextStyle(fontSize: 12, color: AppColors.charcoal),
+                        ),
+                        Text(
+                          'Caution ${formatFcfa(vehicle['deposit_fcfa'] as num)}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.millet),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  PaymentSelectorTile(
+                    selectedMethod: _selectedPayment,
+                    onTap: () => showPaymentModal(context, _selectedPayment, (method) {
+                      setState(() => _selectedPayment = method);
+                    }),
+                  ),
+                ],
+              ),
             ),
           ),
-          const Spacer(),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: SizedBox(
@@ -680,10 +934,17 @@ class _ScreenRentalState extends State<ScreenRental> {
                   backgroundColor: AppColors.sun,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: () {
-                  setState(() => _isRentalActive = true);
-                },
-                child: const Text('Louer pour 1 jour — 5 000 F', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                onPressed: _saving ? null : _rent,
+                child: _saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        'Louer pour 1 jour — ${formatFcfa(vehicle['daily_price_fcfa'] as num)}',
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ),
@@ -692,3 +953,4 @@ class _ScreenRentalState extends State<ScreenRental> {
     );
   }
 }
+
