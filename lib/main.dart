@@ -24,7 +24,7 @@ class MobiloMotorsInteractiveApp extends StatelessWidget {
     final auth = Supabase.instance.client.auth;
 
     return MaterialApp(
-      title: 'Mobilo Motors — App',
+      title: 'Gari VTC — App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.indigoDeep,
@@ -78,7 +78,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
       appBar: AppBar(
         backgroundColor: AppColors.indigoDeep,
         title: const Text(
-          'Mobilo Motors.',
+          'Gari VTC.',
           style: TextStyle(color: AppColors.sun, fontWeight: FontWeight.bold, fontSize: 22),
         ),
         actions: [
