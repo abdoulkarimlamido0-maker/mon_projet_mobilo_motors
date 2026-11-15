@@ -7,7 +7,7 @@ import 'auth_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: 'https://TON-PROJET.supabase.co',
+    url: 'https://izcdejcmewhvldxcdvuf.supabase.co/rest/v1/',
     anonKey: 'TA_CLE_sb_publishable',
   );
   runApp(const MobiloMotorsInteractiveApp());
